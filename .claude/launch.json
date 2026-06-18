@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "debug-log-server",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["debug-server.js"],
+      "port": 7777
+    }
+  ]
+}

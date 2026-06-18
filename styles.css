@@ -1,0 +1,419 @@
+/* Explicit colors via data-theme — CSS variables don't apply to native <select> */
+
+/* ── Veil: blank the results area while the language filter settles ─ */
+/* content.js adds .ytlf-veil to <html> at the start of a /results load and removes
+   it once the final, correct results are ready — so the user never sees pre-filter
+   (wrong-language) results, only the final set. visibility (not display) is used so
+   the results keep their layout height; that prevents YouTube's infinite scroll from
+   running away while the page is blank. The masthead — including our language
+   dropdown — lives outside ytd-page-manager, so it stays visible and usable. */
+html.ytlf-veil ytd-page-manager { visibility: hidden !important; }
+
+/* ── Hide homepage feed ──────────────────────────────────────────── */
+/* html.ytlf-hide-home is set by early.js at document_start so the feed never flashes;
+   body.ytlf-hide-home is the ongoing class content.js keeps in sync. Either hides it. */
+html.ytlf-hide-home ytd-browse[page-subtype="home"] ytd-rich-grid-renderer,
+body.ytlf-hide-home ytd-browse[page-subtype="home"] ytd-rich-grid-renderer {
+  display: none !important;
+}
+
+/* ── Hide Shorts everywhere ──────────────────────────────────────── */
+/* CSS covers all known element variants */
+body.ytlf-hide-shorts ytd-reel-shelf-renderer,
+body.ytlf-hide-shorts ytd-rich-shelf-renderer[is-shorts],
+body.ytlf-hide-shorts ytd-shelf-renderer[is-shorts],
+body.ytlf-hide-shorts ytd-reel-item-renderer,
+body.ytlf-hide-shorts ytd-shorts,
+body.ytlf-hide-shorts yt-shorts-lockup-view-model,
+/* Homepage section wrappers */
+body.ytlf-hide-shorts ytd-rich-section-renderer:has(ytd-reel-shelf-renderer),
+body.ytlf-hide-shorts ytd-rich-section-renderer:has(ytd-rich-shelf-renderer[is-shorts]),
+body.ytlf-hide-shorts ytd-rich-section-renderer:has(ytd-shorts),
+body.ytlf-hide-shorts ytd-rich-section-renderer:has(yt-shorts-lockup-view-model),
+body.ytlf-hide-shorts ytd-rich-item-renderer:has(ytd-reel-item-renderer),
+body.ytlf-hide-shorts ytd-rich-item-renderer:has(a[href^="/shorts/"]),
+/* Search-results section wrappers — on /results the reel shelf lives inside a
+   ytd-item-section-renderer that ALSO holds the real video results, so hide the
+   whole section ONLY when it is purely shorts. Hiding a mixed section empties the
+   results list and throws YouTube's infinite scroll into a continuous refresh
+   loop; the reel shelf itself is already hidden by the rule above, so a mixed
+   section just loses its shelf. */
+body.ytlf-hide-shorts ytd-item-section-renderer:has(ytd-reel-shelf-renderer):not(:has(ytd-video-renderer)),
+body.ytlf-hide-shorts ytd-item-section-renderer:has(ytd-reel-item-renderer):not(:has(ytd-video-renderer)),
+body.ytlf-hide-shorts ytd-compact-video-renderer:has(a[href^="/shorts/"]),
+body.ytlf-hide-shorts ytd-video-renderer:has(a[href^="/shorts/"]) { display: none !important; }
+/* Topic-titled / view-model Shorts shelves (e.g. "🩳 Baking") — detect by the
+   /shorts/ links inside and hide INSTANTLY via CSS, so they never flash before the
+   JS tagger runs. A pure-shorts section (no real ytd-video-renderer) is hidden as a
+   whole; the known shelf elements are hidden directly. The main results section is
+   never matched here because it always holds ytd-video-renderer, so this can't
+   re-empty the list. */
+body.ytlf-hide-shorts ytd-item-section-renderer:has(a[href^="/shorts/"]):not(:has(ytd-video-renderer)),
+body.ytlf-hide-shorts ytd-rich-shelf-renderer:has(a[href^="/shorts/"]),
+body.ytlf-hide-shorts ytd-shelf-renderer:has(a[href^="/shorts/"]),
+body.ytlf-hide-shorts grid-shelf-view-model:has(a[href^="/shorts/"]),
+body.ytlf-hide-shorts yt-horizontal-list-renderer:has(a[href^="/shorts/"]),
+body.ytlf-hide-shorts ytd-horizontal-card-list-renderer:has(a[href^="/shorts/"]) { display: none !important; }
+/* JS scanner tags elements CSS might miss (unknown future element names, title-text matches) */
+body.ytlf-hide-shorts [data-ytlf-shorts] { display: none !important; }
+/* Left nav Shorts link */
+body.ytlf-hide-shorts ytd-guide-entry-renderer:has(a[title="Shorts"]),
+body.ytlf-hide-shorts ytd-mini-guide-entry-renderer:has(a[aria-label="Shorts"]) { display: none !important; }
+
+/* ── Hide YouTube Playables ──────────────────────────────────────── */
+body.ytlf-hide-playables ytd-game-card-renderer,
+body.ytlf-hide-playables ytd-rich-item-renderer:has(ytd-game-card-renderer),
+body.ytlf-hide-playables ytd-rich-section-renderer:has(ytd-game-card-renderer),
+body.ytlf-hide-playables [data-ytlf-playables] { display: none !important; }
+body.ytlf-hide-playables ytd-guide-entry-renderer:has(a[title="Playables"]),
+body.ytlf-hide-playables ytd-guide-entry-renderer:has(a[aria-label="Playables"]) { display: none !important; }
+
+/* ── Hide watch page sidebar + center primary column ────────────── */
+/* Full hide (the "Keep playlist" sub-option is OFF). */
+body.ytlf-hide-sidebar:not(.ytlf-sidebar-playlist) #secondary { display: none !important; }
+body.ytlf-hide-sidebar:not(.ytlf-sidebar-playlist) ytd-watch-flexy #columns { justify-content: center !important; }
+/* Sub-option ON: keep ONLY the playlist panel, hide the rest of the sidebar
+   (related videos, shelves, etc.). If this video isn't in a playlist there's nothing
+   to keep, so fall back to a full hide with the video centered. */
+body.ytlf-hide-sidebar.ytlf-sidebar-playlist #secondary-inner > *:not(#playlist):not(ytd-playlist-panel-renderer) { display: none !important; }
+body.ytlf-hide-sidebar.ytlf-sidebar-playlist #secondary:not(:has(ytd-playlist-panel-renderer)) { display: none !important; }
+body.ytlf-hide-sidebar.ytlf-sidebar-playlist ytd-watch-flexy #columns:not(:has(ytd-playlist-panel-renderer)) { justify-content: center !important; }
+
+/* ── Hide engagements ────────────────────────────────────────────── */
+/* View counts on video cards (homepage, search, sidebar) */
+body.ytlf-hide-engagements #metadata-line,
+body.ytlf-hide-engagements span.inline-metadata-item { display: none !important; }
+/* View count + info on watch page */
+body.ytlf-hide-engagements ytd-video-view-count-renderer,
+body.ytlf-hide-engagements ytd-watch-info-text { display: none !important; }
+/* Like / dislike buttons */
+body.ytlf-hide-engagements segmented-like-dislike-button-view-model,
+body.ytlf-hide-engagements ytd-segmented-like-dislike-button-renderer { display: none !important; }
+/* Subscriber count (watch page owner info, older channel headers) */
+body.ytlf-hide-engagements #owner-sub-count,
+body.ytlf-hide-engagements #subscriber-count,
+body.ytlf-hide-engagements #subscribers { display: none !important; }
+/* Subscriber count inside watch-page description channel card (modern YouTube) */
+body.ytlf-hide-engagements ytd-video-description-header-renderer #subscriber-count,
+body.ytlf-hide-engagements ytd-video-description-header-renderer #subscribers { display: none !important; }
+/* Channel page header: subscriber count + video count row (modern YouTube) */
+body.ytlf-hide-engagements yt-content-metadata-view-model { display: none !important; }
+/* Channel page header: older layout */
+body.ytlf-hide-engagements #channel-stats,
+body.ytlf-hide-engagements ytd-channel-about-stats-renderer { display: none !important; }
+/* Channel cards in search results */
+body.ytlf-hide-engagements ytd-channel-renderer #subscribers,
+body.ytlf-hide-engagements ytd-channel-renderer #video-count { display: none !important; }
+/* Notification bell */
+body.ytlf-hide-engagements ytd-notification-topbar-button-renderer,
+body.ytlf-hide-engagements #notification-button { display: none !important; }
+/* Top filter chip bar (homepage category pills) — hidden via JS in applyEngagementsDom()
+   only on non-search pages so applyVideoFilter() can still click the Videos chip. */
+/* Everything below the description on the watch page */
+body.ytlf-hide-engagements ytd-watch-metadata ~ * { display: none !important; }
+/* Left-sidebar (guide) sections tagged by tagEngagementSidebar(): the Explore /
+   More from YouTube / Subscriptions sections, and the "Movies & TV" / "Report
+   history" entries. */
+body.ytlf-hide-engagements [data-ytlf-eng-hide] { display: none !important; }
+/* Guide footer: About/Press/Copyright… links + "© Google LLC". */
+body.ytlf-hide-engagements ytd-guide-renderer #footer { display: none !important; }
+
+/* ── Hide Comments ───────────────────────────────────────────────── */
+/* The whole comments section under a video — count, "Add a comment" box, and every
+   thread all live inside ytd-comments#comments, so hiding it blanks the lot. */
+body.ytlf-hide-comments ytd-comments,
+body.ytlf-hide-comments #comments,
+body.ytlf-hide-comments ytd-comments-entry-point-header-renderer { display: none !important; }
+
+/* ── Widen the masthead so the search bar isn't squeezed by our two pills ── */
+/* Gated on :has(#ytlf): the widening applies ONLY while our widget is present, so
+   when the extension is turned off (widget removed) the search bar reverts to
+   YouTube's native width — the extension leaves no trace. */
+ytd-masthead #center.ytd-masthead:has(#ytlf) { max-width: 850px; }
+
+#ytlf {
+  display: flex;
+  align-items: center;
+  margin-left: 8px;
+  gap: 6px;
+  flex-shrink: 0;
+  /* Pin to the masthead row: when the search suggestions panel opens, #center
+     grows taller and would otherwise drag the widget down with it. */
+  align-self: flex-start;
+  height: 56px;
+}
+
+/* ── Custom dropdown ───────────────────────────────────── */
+#ytlf-dropdown { position: relative; flex-shrink: 0; }
+
+#ytlf-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 20px;
+  border: 1px solid;
+  cursor: pointer;
+  font-size: 14px;
+  font-family: Roboto, Arial, sans-serif;
+  white-space: nowrap;
+  outline: none;
+  min-width: 118px;
+  transition: background 0.15s, border-color 0.15s;
+}
+#ytlf-trigger-label { flex: 1; text-align: left; }
+#ytlf-trigger-arrow {
+  display: flex;
+  align-items: center;
+  opacity: 0.65;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+#ytlf-trigger[aria-expanded="true"] #ytlf-trigger-arrow { transform: rotate(180deg); }
+
+#ytlf-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 210px;
+  max-height: 320px;
+  overflow-y: auto;
+  border-radius: 14px;
+  border: 1px solid;
+  z-index: 999999;
+  opacity: 0;
+  transform: translateY(-6px) scale(0.98);
+  pointer-events: none;
+  transition: opacity 0.15s, transform 0.15s;
+  scrollbar-width: thin;
+}
+#ytlf-panel.open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: all;
+}
+.ytlf-opt {
+  padding: 9px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  font-family: Roboto, Arial, sans-serif;
+  transition: background 0.1s;
+}
+
+/* ── Language search bar ───────────────────────────────── */
+#ytlf-search {
+  position: sticky;
+  top: 0;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 16px;
+  border: none;
+  border-bottom: 1px solid;
+  font-size: 14px;
+  font-family: Roboto, Arial, sans-serif;
+  outline: none;
+  z-index: 1;
+}
+#ytlf[data-theme="dark"] #ytlf-search {
+  background: #1e1e1e; color: #f1f1f1; border-bottom-color: rgba(255,255,255,0.1);
+}
+#ytlf[data-theme="dark"] #ytlf-search::placeholder { color: #888; }
+#ytlf[data-theme="light"] #ytlf-search {
+  background: #ffffff; color: #0f0f0f; border-bottom-color: rgba(0,0,0,0.1);
+}
+#ytlf[data-theme="light"] #ytlf-search::placeholder { color: #999; }
+
+/* Keyboard-highlighted option (arrow keys / best match while typing) */
+#ytlf[data-theme="dark"] .ytlf-opt.active { background: rgba(255,255,255,0.12); }
+#ytlf[data-theme="light"] .ytlf-opt.active { background: rgba(0,0,0,0.08); }
+
+/* ── Dark theme ────────────────────────────────────────── */
+#ytlf[data-theme="dark"] #ytlf-trigger {
+  background: #272727; color: #f1f1f1; border-color: #3f3f3f;
+}
+#ytlf[data-theme="dark"] #ytlf-trigger:hover,
+#ytlf[data-theme="dark"] #ytlf-trigger[aria-expanded="true"] {
+  background: #383838; border-color: #606060;
+}
+#ytlf[data-theme="dark"] #ytlf-panel {
+  background: #1e1e1e;
+  border-color: rgba(255,255,255,0.1);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.65);
+}
+#ytlf[data-theme="dark"] #ytlf-panel::-webkit-scrollbar { width: 4px; }
+#ytlf[data-theme="dark"] #ytlf-panel::-webkit-scrollbar-thumb {
+  background: #444; border-radius: 4px;
+}
+#ytlf[data-theme="dark"] .ytlf-opt { color: #f1f1f1; }
+#ytlf[data-theme="dark"] .ytlf-opt:hover { background: rgba(255,255,255,0.07); }
+#ytlf[data-theme="dark"] .ytlf-opt.selected {
+  background: rgba(62,166,255,0.18); color: #3ea6ff; font-weight: 500;
+}
+
+/* ── Light theme ───────────────────────────────────────── */
+#ytlf[data-theme="light"] #ytlf-trigger {
+  background: #f2f2f2; color: #0f0f0f; border-color: #cccccc;
+}
+#ytlf[data-theme="light"] #ytlf-trigger:hover,
+#ytlf[data-theme="light"] #ytlf-trigger[aria-expanded="true"] {
+  background: #e5e5e5; border-color: #909090;
+}
+#ytlf[data-theme="light"] #ytlf-panel {
+  background: #ffffff;
+  border-color: rgba(0,0,0,0.1);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.13);
+}
+#ytlf[data-theme="light"] #ytlf-panel::-webkit-scrollbar { width: 4px; }
+#ytlf[data-theme="light"] #ytlf-panel::-webkit-scrollbar-thumb {
+  background: #ccc; border-radius: 4px;
+}
+#ytlf[data-theme="light"] .ytlf-opt { color: #0f0f0f; }
+#ytlf[data-theme="light"] .ytlf-opt:hover { background: rgba(0,0,0,0.05); }
+#ytlf[data-theme="light"] .ytlf-opt.selected {
+  background: rgba(0,96,204,0.1); color: #0060cc; font-weight: 500;
+}
+
+/* ── Disabled state (extension turned off) ─────────────── */
+#ytlf[data-enabled="0"] { opacity: 0.4; pointer-events: none; }
+
+/* ── Toggle button ─────────────────────────────────────── */
+#ytlf-toggle {
+  height: 36px;
+  width: 36px;
+  border-radius: 50%;
+  border: 1px solid;
+  background: transparent;
+  cursor: pointer;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+#ytlf[data-theme="light"] #ytlf-toggle {
+  color: #0f0f0f;
+  border-color: #cccccc;
+}
+#ytlf[data-theme="light"] #ytlf-toggle:hover {
+  background: #e5e5e5;
+}
+
+#ytlf[data-theme="dark"] #ytlf-toggle {
+  color: #f1f1f1;
+  border-color: #3f3f3f;
+}
+#ytlf[data-theme="dark"] #ytlf-toggle:hover {
+  background: #3f3f3f;
+}
+
+/* ── Country picker (multi-select; mirrors the language dropdown) ───────── */
+#ytlf-c-dropdown { position: relative; flex-shrink: 0; }
+#ytlf-c-trigger {
+  display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px;
+  border-radius: 20px; border: 1px solid; cursor: pointer; font-size: 14px;
+  font-family: Roboto, Arial, sans-serif; white-space: nowrap; outline: none;
+  min-width: 104px; transition: background 0.15s, border-color 0.15s;
+}
+#ytlf-c-label { flex: 1; text-align: left; }
+#ytlf-c-arrow { display: flex; align-items: center; opacity: 0.65; transition: transform 0.2s; flex-shrink: 0; }
+#ytlf-c-trigger[aria-expanded="true"] #ytlf-c-arrow { transform: rotate(180deg); }
+
+#ytlf-c-panel {
+  position: absolute; top: calc(100% + 6px); right: 0; left: auto;
+  width: 270px; max-height: 380px; display: flex; flex-direction: column;
+  border-radius: 14px; border: 1px solid; z-index: 999999; overflow: hidden;
+  opacity: 0; transform: translateY(-6px) scale(0.98); pointer-events: none;
+  transition: opacity 0.15s, transform 0.15s;
+}
+#ytlf-c-panel.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: all; }
+
+#ytlf-c-tags {
+  display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px; align-items: center;
+  border-bottom: 1px solid;
+}
+#ytlf-c-search {
+  flex: 1; min-width: 90px; border: none; outline: none; background: transparent;
+  font-size: 14px; font-family: Roboto, Arial, sans-serif; padding: 4px 2px;
+}
+.ytlf-c-chip {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 5px 3px 10px;
+  border-radius: 13px; border: 1px solid; font-size: 13px; line-height: 1.4; white-space: nowrap;
+}
+.ytlf-c-x {
+  border: none; background: transparent; cursor: pointer; font-size: 14px; line-height: 1;
+  padding: 0 2px; opacity: 0.7;
+}
+.ytlf-c-x:hover { opacity: 1; }
+
+#ytlf-c-list { overflow-y: auto; flex: 1; scrollbar-width: thin; }
+.ytlf-c-opt {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 9px 16px; cursor: pointer; font-size: 14px;
+  font-family: Roboto, Arial, sans-serif; transition: background 0.1s;
+}
+.ytlf-c-code { opacity: 0.4; font-size: 12px; letter-spacing: 0.5px; }
+.ytlf-c-opt.selected { opacity: 0.4; } /* greyed once chosen (shown as a chip above) */
+
+#ytlf-c-unknown {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 13px 14px; border-top: 1px solid; font-size: 15px; line-height: 1.35; cursor: pointer;
+}
+.ytlf-c-unknown-text { flex: 1; }
+
+/* Switch toggle (in-page widget) — same shape/feel as the popup's switches */
+.ytlf-switch { position: relative; width: 38px; height: 22px; flex-shrink: 0; display: inline-block; }
+.ytlf-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+.ytlf-slider { position: absolute; inset: 0; border-radius: 22px; transition: background 0.2s; cursor: pointer; }
+.ytlf-slider::before {
+  content: ''; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px;
+  background: #fff; border-radius: 50%; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,.35);
+}
+.ytlf-switch input:checked + .ytlf-slider::before { transform: translateX(16px); }
+
+#ytlf-c-hint { display: none; margin: 0; padding: 8px 14px 10px; font-size: 12px; line-height: 1.35; }
+
+/* dark theme */
+#ytlf[data-theme="dark"] #ytlf-c-trigger { background: #272727; color: #f1f1f1; border-color: #3f3f3f; }
+#ytlf[data-theme="dark"] #ytlf-c-trigger:hover,
+#ytlf[data-theme="dark"] #ytlf-c-trigger[aria-expanded="true"] { background: #383838; border-color: #606060; }
+#ytlf[data-theme="dark"] #ytlf-c-dropdown[data-has="1"] #ytlf-c-trigger { border-color: #3ea6ff; color: #3ea6ff; }
+#ytlf[data-theme="dark"] #ytlf-c-panel { background: #1e1e1e; border-color: rgba(255,255,255,0.1); box-shadow: 0 8px 28px rgba(0,0,0,0.65); }
+#ytlf[data-theme="dark"] #ytlf-c-tags { border-bottom-color: rgba(255,255,255,0.1); }
+#ytlf[data-theme="dark"] #ytlf-c-search { color: #f1f1f1; }
+#ytlf[data-theme="dark"] #ytlf-c-search::placeholder { color: #888; }
+#ytlf[data-theme="dark"] .ytlf-c-chip { background: rgba(62,166,255,0.18); color: #3ea6ff; border-color: rgba(62,166,255,0.35); }
+#ytlf[data-theme="dark"] .ytlf-c-x { color: #3ea6ff; }
+#ytlf[data-theme="dark"] .ytlf-c-opt { color: #f1f1f1; }
+#ytlf[data-theme="dark"] .ytlf-c-opt:hover,
+#ytlf[data-theme="dark"] .ytlf-c-opt.active { background: rgba(255,255,255,0.1); }
+#ytlf[data-theme="dark"] #ytlf-c-list::-webkit-scrollbar { width: 4px; }
+#ytlf[data-theme="dark"] #ytlf-c-list::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+#ytlf[data-theme="dark"] #ytlf-c-unknown { border-top-color: rgba(255,255,255,0.1); color: #f1f1f1; }
+#ytlf[data-theme="dark"] .ytlf-slider { background: #3D2E2E; }            /* popup --track-off (dark) */
+#ytlf[data-theme="dark"] .ytlf-switch input:checked + .ytlf-slider { background: #ABA280; } /* popup --accent (dark) */
+#ytlf[data-theme="dark"] #ytlf-c-hint { color: #e0b341; }
+
+/* light theme */
+#ytlf[data-theme="light"] #ytlf-c-trigger { background: #f2f2f2; color: #0f0f0f; border-color: #cccccc; }
+#ytlf[data-theme="light"] #ytlf-c-trigger:hover,
+#ytlf[data-theme="light"] #ytlf-c-trigger[aria-expanded="true"] { background: #e5e5e5; border-color: #909090; }
+#ytlf[data-theme="light"] #ytlf-c-dropdown[data-has="1"] #ytlf-c-trigger { border-color: #0060cc; color: #0060cc; }
+#ytlf[data-theme="light"] #ytlf-c-panel { background: #fff; border-color: rgba(0,0,0,0.1); box-shadow: 0 8px 24px rgba(0,0,0,0.13); }
+#ytlf[data-theme="light"] #ytlf-c-tags { border-bottom-color: rgba(0,0,0,0.1); }
+#ytlf[data-theme="light"] #ytlf-c-search { color: #0f0f0f; }
+#ytlf[data-theme="light"] #ytlf-c-search::placeholder { color: #999; }
+#ytlf[data-theme="light"] .ytlf-c-chip { background: rgba(0,96,204,0.1); color: #0060cc; border-color: rgba(0,96,204,0.3); }
+#ytlf[data-theme="light"] .ytlf-c-x { color: #0060cc; }
+#ytlf[data-theme="light"] .ytlf-c-opt { color: #0f0f0f; }
+#ytlf[data-theme="light"] .ytlf-c-opt:hover,
+#ytlf[data-theme="light"] .ytlf-c-opt.active { background: rgba(0,0,0,0.06); }
+#ytlf[data-theme="light"] #ytlf-c-list::-webkit-scrollbar { width: 4px; }
+#ytlf[data-theme="light"] #ytlf-c-list::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+#ytlf[data-theme="light"] #ytlf-c-unknown { border-top-color: rgba(0,0,0,0.1); color: #0f0f0f; }
+#ytlf[data-theme="light"] .ytlf-slider { background: #BDB6AE; }           /* popup --track-off (light) */
+#ytlf[data-theme="light"] .ytlf-switch input:checked + .ytlf-slider { background: #583A3B; } /* popup --accent (light) */
+#ytlf[data-theme="light"] #ytlf-c-hint { color: #9a6a00; }
