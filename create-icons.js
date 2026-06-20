@@ -122,18 +122,19 @@ function drawIcon(size) {
   }
 
   // ── Icon design ──────────────────────────────────────────────────────────────
-  //  Background : YouTube red rounded square
+  //  Background : blue rounded square
   //  Globe      : circle outline + equator + vertical meridian ellipse
   //  All coords in 16-unit design space; s scales them to actual pixels.
 
-  // Red rounded-square background  (#DC2626)
-  fillRoundRect(0, 0, 16, 16, 2.8, 220, 38, 38);
+  // Deep-blue rounded-square background  (#1E3A8A) — darker, more elegant; high contrast with white
+  fillRoundRect(0, 0, 16, 16, 2.8, 30, 58, 138);
 
-  // Globe geometry
-  const gx = 8, gy = 7.5, gr = 4.9;
+  // Globe geometry — centered and enlarged to fill the tile (keeps the detailed wireframe)
+  const gx = 8, gy = 8, gr = 6.0;
 
-  // Line width: thinner at 16 px for crispness, slightly heavier at 48/128
-  const lw = size <= 16 ? 0.72 : size <= 48 ? 0.78 : 0.82;
+  // Line width: kept crisp at 16 px (toolbar size, no muddiness), lighter at 48/128 so the
+  // enlarged, detailed globe reads as elegant rather than heavy.
+  const lw = size <= 16 ? 0.8 : size <= 48 ? 0.74 : 0.7;
 
   strokeCircle(gx, gy, gr, lw, 255, 255, 255);
   drawLine(gx - gr, gy, gx + gr, gy, lw, 255, 255, 255, gx, gy, gr); // equator

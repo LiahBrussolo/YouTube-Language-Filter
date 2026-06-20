@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "YouTube Language Filter",
-  "version": "1.6.10",
-  "description": "Filter YouTube search results to show only videos in your chosen language",
+  "version": "1.0.0",
+  "description": "Find YouTube videos in a selected language, minimize distractions on YouTube. Optionally also filter by country.",
   "permissions": ["storage"],
   "host_permissions": [
     "https://www.googleapis.com/",

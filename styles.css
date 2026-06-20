@@ -117,6 +117,14 @@ body.ytlf-hide-engagements ytd-watch-metadata ~ * { display: none !important; }
 body.ytlf-hide-engagements [data-ytlf-eng-hide] { display: none !important; }
 /* Guide footer: About/Press/Copyright… links + "© Google LLC". */
 body.ytlf-hide-engagements ytd-guide-renderer #footer { display: none !important; }
+/* Pre-paint veil for the left guide. These distraction sections are identified ONLY by
+   their title text (Explore / More from YouTube / Subscriptions), which CSS cannot match
+   — so instead of guessing at structural selectors, we hide the WHOLE guide until the
+   tagger has run. early.js adds html.ytlf-hide-engagements at document_start; content.js
+   adds .ytlf-eng-ready the instant it has tagged the guide, revealing it already-filtered
+   so the distraction sections never flash. visibility (not display) preserves the guide's
+   column width, so nothing reflows when it appears. Mirrors the search-results veil. */
+html.ytlf-hide-engagements:not(.ytlf-eng-ready) ytd-guide-renderer { visibility: hidden !important; }
 
 /* ── Hide Comments ───────────────────────────────────────────────── */
 /* The whole comments section under a video — count, "Add a comment" box, and every

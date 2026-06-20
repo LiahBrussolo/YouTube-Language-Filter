@@ -50,7 +50,7 @@ themeBtn.addEventListener('click', () => {
 // ── Load all settings ────────────────────────────────────
 
 chrome.storage.sync.get(
-  [KEY, ENABLED_KEY, HIDE_HOME_KEY, HIDE_SIDEBAR_KEY, HIDE_SHORTS_KEY,
+  [KEY, ENABLED_KEY, HIDE_HOME_KEY, HIDE_SIDEBAR_KEY, HIDE_PLAYLIST_KEY, HIDE_SHORTS_KEY,
    HIDE_ENGAGEMENTS_KEY, HIDE_COMMENTS_KEY, POPUP_THEME_KEY],
   (res) => {
     applyTheme(res[POPUP_THEME_KEY] || null);

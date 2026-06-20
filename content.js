@@ -157,6 +157,11 @@ let hideShorts    = false;
 let hideEngagements = false;
 let hideComments  = false;
 let enabled       = true;   // master on/off switch
+// Real toggle values arrive async from chrome.storage. Until they do, applyDisplayToggles
+// must NOT overwrite the pre-paint <html> classes early.js set from the localStorage
+// mirror — otherwise the premature init() pass (default values) would lift the guide veil
+// (and hide-home) for a frame on load.
+let settingsLoaded = false;
 
 chrome.storage.sync.get(
   [API_KEY, HIDE_HOME_KEY, HIDE_SIDEBAR_KEY, HIDE_PLAYLIST_KEY, HIDE_SHORTS_KEY,
@@ -170,18 +175,21 @@ chrome.storage.sync.get(
     hideEngagements = !!res[HIDE_ENGAGEMENTS_KEY];
     hideComments    = !!res[HIDE_COMMENTS_KEY];
     enabled       = res[ENABLED_KEY] !== false; // default on
+    settingsLoaded = true;
     mirrorEarlyPrefs();
     applyDisplayToggles();
   }
 );
 
 // Mirror the flash-prone prefs to localStorage (SYNCHRONOUS) so early.js can read them
-// at document_start and hide the homepage feed BEFORE YouTube paints. The authoritative
-// values live in chrome.storage.sync (async — too late to avoid a flash on a fresh tab).
+// at document_start and hide the homepage feed + left-menu distraction sections BEFORE
+// YouTube paints. The authoritative values live in chrome.storage.sync (async — too late
+// to avoid a flash on a fresh tab).
 function mirrorEarlyPrefs() {
   try {
     localStorage.setItem(ENABLED_KEY, enabled ? '1' : '0');
     localStorage.setItem(HIDE_HOME_KEY, hideHome ? '1' : '0');
+    localStorage.setItem(HIDE_ENGAGEMENTS_KEY, hideEngagements ? '1' : '0');
   } catch { /* localStorage blocked */ }
 }
 
@@ -209,6 +217,7 @@ chrome.storage.onChanged.addListener((changes) => {
   }
   if (changes[HIDE_ENGAGEMENTS_KEY]) {
     hideEngagements = !!changes[HIDE_ENGAGEMENTS_KEY].newValue;
+    mirrorEarlyPrefs();
     applyDisplayToggles();
   }
   if (changes[HIDE_COMMENTS_KEY]) {
@@ -384,7 +393,10 @@ function tagEngagementSidebar() {
   // Single guide entries to hide: "Movies & TV" (keep the rest of its "You" section)
   // and "Report history" (the flagged item above the footer).
   document.querySelectorAll('ytd-guide-entry-renderer').forEach(entry => {
-    const t = entry.querySelector('.title')?.textContent?.trim().toLowerCase() ?? '';
+    // Label lives in .title on most builds; fall back to the link's title attribute
+    // (the hook ad-block filters rely on) so a markup change can't strand these.
+    const t = (entry.querySelector('.title')?.textContent
+      ?? entry.querySelector('a[title]')?.getAttribute('title') ?? '').trim().toLowerCase();
     const hit = /^movies\s*&\s*tv$/.test(t) || t === 'report history';
     if (hit) { if (entry.dataset.ytlfEngHide !== '1') entry.dataset.ytlfEngHide = '1'; }
     else if (entry.dataset.ytlfEngHide) delete entry.dataset.ytlfEngHide;
@@ -452,12 +464,20 @@ function applyEngagementsDom() {
       sib = sib.nextElementSibling;
     }
   });
+
+  // Lift the guide veil (styles.css hides the whole guide until this class is set) once
+  // the guide exists and its distraction sections have just been tagged above — so the
+  // menu is revealed already-filtered and the sections never flash on load.
+  if (on && document.querySelector('ytd-guide-section-renderer')) {
+    document.documentElement.classList.add('ytlf-eng-ready');
+  }
 }
 
 function applyDisplayToggles() {
   if (!enabled) {
-    // ytlf-hide-home also lives on <html> (early.js sets it at document_start) — clear both.
-    document.documentElement.classList.remove('ytlf-hide-home');
+    // ytlf-hide-home / ytlf-hide-engagements also live on <html> (early.js sets them at
+    // document_start) — clear them there too.
+    document.documentElement.classList.remove('ytlf-hide-home', 'ytlf-hide-engagements');
     document.body?.classList.remove(
       'ytlf-hide-home', 'ytlf-hide-sidebar', 'ytlf-sidebar-playlist', 'ytlf-hide-shorts',
       'ytlf-hide-playables', 'ytlf-hide-engagements', 'ytlf-hide-comments'
@@ -465,9 +485,13 @@ function applyDisplayToggles() {
     applyEngagementsDom();
     return;
   }
-  // Keep the <html> class in lockstep with the real setting so early.js's pre-paint
-  // hide is corrected if the toggle was changed since the last load.
-  document.documentElement.classList.toggle('ytlf-hide-home', hideHome);
+  // Keep the <html> classes in lockstep with the real settings so early.js's pre-paint
+  // hide is corrected if a toggle changed since the last load. Skip until settings have
+  // loaded, so the premature init() pass (default values) can't lift early.js's veil.
+  if (settingsLoaded) {
+    document.documentElement.classList.toggle('ytlf-hide-home',        hideHome);
+    document.documentElement.classList.toggle('ytlf-hide-engagements', hideEngagements);
+  }
   document.body?.classList.toggle('ytlf-hide-home',        hideHome);
   document.body?.classList.toggle('ytlf-hide-sidebar',     hideSidebar);
   // ytlf-sidebar-playlist = "keep playlist" mode = sidebar hidden but Hide playlist OFF.
@@ -1807,4 +1831,10 @@ document.addEventListener('yt-navigate-finish', () => {
   initTimer = setTimeout(init, 50);
 });
 observer.observe(document.body, { childList: true, subtree: true });
+
+// Failsafe for the guide veil: it is normally lifted the instant applyEngagementsDom
+// tags the guide. If a future YouTube markup change ever stopped that path, this
+// guarantees the guide can never stay invisible — reveal unconditionally after 4s.
+setTimeout(() => document.documentElement.classList.add('ytlf-eng-ready'), 4000);
+
 init();
