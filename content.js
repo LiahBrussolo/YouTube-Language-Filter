@@ -679,7 +679,7 @@ async function fetchMetadata(ids) {
   url.searchParams.set('part',   'snippet');
   url.searchParams.set('id',     ids.join(','));
   // channelId is needed for the country filter (→ channels.list → snippet.country).
-  url.searchParams.set('fields', 'items(id,snippet(defaultLanguage,defaultAudioLanguage,channelId))');
+  url.searchParams.set('fields', 'items(id,snippet(defaultAudioLanguage,channelId))');
   url.searchParams.set('key',    cachedApiKey);
   const res = await fetch(url.toString());
   if (!res.ok) throw new Error(`YouTube API ${res.status}`);
@@ -934,7 +934,13 @@ function decideVideoMeta(renderer, id, apiLang, channelId) {
   const lang = getLang();
   if (!lang)    { decide(renderer, '', id); return; }       // country-only / no filters
   if (apiLang)  { decide(renderer, isApiMatch(apiLang, lang) ? '' : 'none', id); return; }
-  filterByText(renderer, id);                               // no API language → text/badge
+  // Strict (we only reach here WITH an API key, so the user opted into precise audio
+  // filtering): the API returned this video but set no audio language. Require an explicit
+  // audio signal — trust the on-card audio badge if present; otherwise HIDE rather than
+  // guess from the title, whose language routinely differs from the spoken audio (e.g. a
+  // Russian-titled lesson with English audio). getBadgeLangCode returns null when there is
+  // no badge, so null !== lang → hide.
+  decide(renderer, getBadgeLangCode(renderer) === lang ? '' : 'none', id);
 }
 
 async function decideBatch(batch) {
@@ -960,7 +966,7 @@ async function decideBatch(batch) {
       for (const item of (data.items ?? [])) {
         returned.add(item.id);
         videoMeta.set(item.id, {
-          apiLang:   item.snippet.defaultAudioLanguage || item.snippet.defaultLanguage || null,
+          apiLang:   item.snippet.defaultAudioLanguage || null, // audio track ONLY — never defaultLanguage (that's the title's language, not the spoken audio)
           channelId: item.snippet.channelId || null,
         });
       }
