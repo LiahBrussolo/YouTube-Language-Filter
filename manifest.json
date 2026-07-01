@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YouTube Language Filter",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Find YouTube videos in a selected language, minimize distractions on YouTube. Optionally also filter by country.",
   "permissions": ["storage"],
   "host_permissions": [

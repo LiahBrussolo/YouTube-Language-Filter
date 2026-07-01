@@ -128,6 +128,7 @@ function ytlfLog(msg) {
 const LANG_KEY          = 'ytlf_lang';
 const COUNTRIES_KEY     = 'ytlf_countries';      // JSON array of selected alpha-2 codes
 const SHOW_UNKNOWN_KEY  = 'ytlf_show_unknown';   // '1' = keep channels with no country
+const SHOW_UNTAGGED_KEY = 'ytlf_show_untagged';  // '1' = also show videos with no audio-language tag (decide by title/badge)
 const API_KEY           = 'ytlf_api_key';
 const HIDE_HOME_KEY      = 'ytlf_hide_home';
 const HIDE_SIDEBAR_KEY   = 'ytlf_hide_sidebar';
@@ -136,7 +137,6 @@ const HIDE_SHORTS_KEY    = 'ytlf_hide_shorts';
 const HIDE_ENGAGEMENTS_KEY = 'ytlf_hide_engagements';
 const HIDE_COMMENTS_KEY  = 'ytlf_hide_comments';
 const ENABLED_KEY        = 'ytlf_enabled';
-const MIN_TEXT_LEN = 12;   // CLD needs enough chars to be confident
 const MIN_CONF     = 55;   // below this % we show the video rather than wrongly hide it
 const BATCH_MS     = 50;   // debounce window to collect IDs before one API call
 const THEME_KEY    = 'ytlf_theme'; // 'light' | 'dark' | absent = follow YouTube
@@ -535,6 +535,13 @@ function setShowUnknown(on) {
   localStorage.setItem(SHOW_UNKNOWN_KEY, on ? '1' : '0');
   veilReset();
 }
+// Whether to SHOW videos that carry no audio-language tag (decide them by title/badge).
+// Off (default) = strict: a confirmed audio language must match. Toggle in the language picker.
+function getShowUntagged() { return localStorage.getItem(SHOW_UNTAGGED_KEY) === '1'; }
+function setShowUntagged(on) {
+  localStorage.setItem(SHOW_UNTAGGED_KEY, on ? '1' : '0');
+  veilReset();
+}
 
 // Country filtering is scoped to the search-results page only.
 function countryActive() {
@@ -543,14 +550,15 @@ function countryActive() {
 // Any filter that should gate rendering / drive the veil on the current page.
 function anyFilterActive() { return !!getLang() || countryActive(); }
 
-// Decisions depend on BOTH the language and (on /results) the country selection +
-// the show-unknown toggle, so the decision cache is keyed by all of them.
+// Decisions depend on the language, the show-untagged toggle, and (on /results) the
+// country selection + show-unknown toggle, so the decision cache is keyed by all of them.
 function filterKey() {
   const lang = getLang();
+  const untagged = getShowUntagged() ? 1 : 0;
   if (window.location.pathname === '/results') {
-    return `${lang}|${getCountries().slice().sort().join(',')}|${getShowUnknown() ? 1 : 0}`;
+    return `${lang}|${getCountries().slice().sort().join(',')}|${getShowUnknown() ? 1 : 0}|${untagged}`;
   }
-  return `${lang}|`;
+  return `${lang}|${untagged}`;
 }
 
 // --- Theme ---
@@ -637,32 +645,35 @@ function getBadgeLangCode(renderer) {
   return null; // no language badge found on this card
 }
 
-// --- Text detection (used when no API key, or when creator hasn't set a language) ---
+// --- Text detection from TRUSTWORTHY signals only ---
+// The on-page title is NEVER read: YouTube can auto-translate it into the viewer's UI
+// language, and an auto/AI-translated title must be cleanly disregarded. We use only
+// (a) YouTube's audio-language badge (a label, not a translatable title) and (b) the
+// ORIGINAL title from the API, passed in as originalTitle. With neither, there is no
+// trustworthy text → show (benefit of the doubt); we never hide on text we can't trust.
 
-function filterByText(renderer, id = null) {
+function filterByText(renderer, id = null, originalTitle = null) {
   if (!isContextValid()) { showRenderer(renderer); return; }
 
   const lang = getLang(); // capture for async callback
 
-  // 1. Try YouTube's own badge — handles "Dutch title, English video" correctly.
+  // 1. YouTube's own audio-language badge — trustworthy (a label, never a translation).
   const badgeCode = getBadgeLangCode(renderer);
   if (badgeCode !== null) {
     decide(renderer, (badgeCode === lang) ? '' : 'none', id);
     return;
   }
 
-  // 2. No badge present — fall back to CLD on title + snippet text.
-  const title   = renderer.querySelector('#video-title')?.textContent?.trim() ?? '';
-  const snippet = renderer.querySelector('#description-text')?.textContent?.trim() ?? '';
-  const text    = title.length >= MIN_TEXT_LEN ? title : `${title} ${snippet}`.trim();
-  // No text to detect (music videos, symbol-only titles) — show, never strand hidden.
+  // 2. CLD on the ORIGINAL title only. No original title (no API key / no-id card / API
+  // miss) → no trustworthy signal → show; never guess from the on-page (translatable) title.
+  const text = originalTitle?.trim();
   if (!text) { decide(renderer, '', id); return; }
 
   try {
     chrome.i18n.detectLanguage(text, ({ languages }) => {
       if (!enabled) { decide(renderer, '', id); return; }
       const top = languages?.[0];
-      // Renderer was pre-hidden by queueRenderer. Uncertain = show (benefit of doubt).
+      // Uncertain = show (benefit of the doubt).
       const display = (!top || top.percentage < MIN_CONF || isCldMatch(top.language, lang))
         ? '' : 'none';
       decide(renderer, display, id);
@@ -678,8 +689,9 @@ async function fetchMetadata(ids) {
   const url = new URL('https://www.googleapis.com/youtube/v3/videos');
   url.searchParams.set('part',   'snippet');
   url.searchParams.set('id',     ids.join(','));
-  // channelId is needed for the country filter (→ channels.list → snippet.country).
-  url.searchParams.set('fields', 'items(id,snippet(defaultAudioLanguage,channelId))');
+  // channelId → country filter. defaultLanguage + title → ORIGINAL-title language detection
+  // (the API title is the creator's own, never the viewer's on-page auto-translation).
+  url.searchParams.set('fields', 'items(id,snippet(defaultAudioLanguage,defaultLanguage,title,channelId))');
   url.searchParams.set('key',    cachedApiKey);
   const res = await fetch(url.toString());
   if (!res.ok) throw new Error(`YouTube API ${res.status}`);
@@ -916,8 +928,9 @@ const videoMeta = new Map(); // videoId → { apiLang, channelId }
 // Decide ONE video from its metadata. Country gate first (search page + API key
 // only), then the language gate — so a video shows only if it passes BOTH active
 // filters. channelCountryCache must be populated before this when countryActive().
-function decideVideoMeta(renderer, id, apiLang, channelId) {
+function decideVideoMeta(renderer, id, meta) {
   if (!enabled) { showRenderer(renderer); return; }
+  const { apiLang, titleLang, title, channelId } = meta;
 
   if (countryActive() && cachedApiKey) {
     const wanted  = getCountries();
@@ -933,14 +946,22 @@ function decideVideoMeta(renderer, id, apiLang, channelId) {
 
   const lang = getLang();
   if (!lang)    { decide(renderer, '', id); return; }       // country-only / no filters
-  if (apiLang)  { decide(renderer, isApiMatch(apiLang, lang) ? '' : 'none', id); return; }
-  // Strict (we only reach here WITH an API key, so the user opted into precise audio
-  // filtering): the API returned this video but set no audio language. Require an explicit
-  // audio signal — trust the on-card audio badge if present; otherwise HIDE rather than
-  // guess from the title, whose language routinely differs from the spoken audio (e.g. a
-  // Russian-titled lesson with English audio). getBadgeLangCode returns null when there is
-  // no badge, so null !== lang → hide.
-  decide(renderer, getBadgeLangCode(renderer) === lang ? '' : 'none', id);
+  if (apiLang)  { decide(renderer, isApiMatch(apiLang, lang) ? '' : 'none', id); return; } // confirmed AUDIO language
+
+  // No API audio tag. An on-card audio BADGE is the next-best audio confirmation.
+  const badge = getBadgeLangCode(renderer);
+  if (badge !== null) { decide(renderer, badge === lang ? '' : 'none', id); return; }
+
+  // No audio confirmation at all. The "Show videos without audio tag" toggle decides:
+  //  • OFF (strict) → HIDE. Don't guess from the title, whose language routinely differs
+  //    from the spoken audio (e.g. a Russian-titled lesson with English audio).
+  if (!getShowUntagged()) { decide(renderer, 'none', id); return; }
+  //  • ON (lenient) → decide by the video's ORIGINAL title language, NEVER the on-page title
+  //    (YouTube can auto-translate that into the viewer's UI language, which would make
+  //    detection read the wrong language): the creator-declared original-title language
+  //    (defaultLanguage) if set, else CLD on the ORIGINAL title text from the API.
+  if (titleLang) { decide(renderer, isApiMatch(titleLang, lang) ? '' : 'none', id); return; }
+  filterByText(renderer, id, title); // CLD on the ORIGINAL API title; no original title → filterByText shows (never the on-page title)
 }
 
 async function decideBatch(batch) {
@@ -966,12 +987,14 @@ async function decideBatch(batch) {
       for (const item of (data.items ?? [])) {
         returned.add(item.id);
         videoMeta.set(item.id, {
-          apiLang:   item.snippet.defaultAudioLanguage || null, // audio track ONLY — never defaultLanguage (that's the title's language, not the spoken audio)
+          apiLang:   item.snippet.defaultAudioLanguage || null, // spoken AUDIO language (the audio gate)
+          titleLang: item.snippet.defaultLanguage || null,      // language of the ORIGINAL title (the lenient title gate)
+          title:     item.snippet.title || null,                // ORIGINAL title text — never the viewer's on-page auto-translation
           channelId: item.snippet.channelId || null,
         });
       }
       // IDs the API didn't return (private/deleted/embargoed) — no metadata.
-      for (const id of chunk) if (!returned.has(id)) videoMeta.set(id, { apiLang: null, channelId: null });
+      for (const id of chunk) if (!returned.has(id)) videoMeta.set(id, { apiLang: null, titleLang: null, title: null, channelId: null });
     } catch {
       // videos.list failed for this chunk → degrade to language-only and drop these
       // from the country pass so a transient API error never hides everything.
@@ -989,8 +1012,8 @@ async function decideBatch(batch) {
 
   // 3) Decide every video from its (now cached) metadata.
   for (const [id, renderers] of batch) {
-    const meta = videoMeta.get(id) || { apiLang: null, channelId: null };
-    renderers.forEach(r => decideVideoMeta(r, id, meta.apiLang, meta.channelId));
+    const meta = videoMeta.get(id) || { apiLang: null, titleLang: null, title: null, channelId: null };
+    renderers.forEach(r => decideVideoMeta(r, id, meta));
   }
 }
 
@@ -1099,6 +1122,31 @@ function buildWidget() {
     opt.textContent = label;
     panel.appendChild(opt);
   }
+
+  // "Show videos without audio tag" — pinned to the bottom of the panel, mirroring the
+  // country picker's unknown toggle. OFF (default) = strict (a matching audio tag is
+  // required); ON = also show videos with no audio tag whose title/badge reads as the
+  // selected language. Clicks stay inside the panel (the panel handler stopPropagation's),
+  // and it's not a .ytlf-opt so it never triggers a language change.
+  const untaggedRow = document.createElement('label');
+  untaggedRow.id = 'ytlf-untagged';
+  const untaggedText = document.createElement('span');
+  untaggedText.className = 'ytlf-untagged-text';
+  untaggedText.textContent = 'Show videos without audio tag';
+  const untaggedSwitch = document.createElement('span');
+  untaggedSwitch.className = 'ytlf-switch';
+  const untaggedCheck = document.createElement('input');
+  untaggedCheck.type = 'checkbox';
+  untaggedCheck.checked = getShowUntagged();
+  const untaggedSlider = document.createElement('span');
+  untaggedSlider.className = 'ytlf-slider';
+  untaggedSwitch.append(untaggedCheck, untaggedSlider);
+  untaggedRow.append(untaggedText, untaggedSwitch);
+  untaggedCheck.addEventListener('change', () => {
+    setShowUntagged(untaggedCheck.checked);
+    filterAll(); // re-decide the current page under the new rule
+  });
+  panel.appendChild(untaggedRow);
 
   dropdown.appendChild(trigger);
   dropdown.appendChild(panel);

@@ -237,6 +237,31 @@ ytd-masthead #center.ytd-masthead:has(#ytlf) { max-width: 850px; }
 #ytlf[data-theme="dark"] .ytlf-opt.active { background: rgba(255,255,255,0.12); }
 #ytlf[data-theme="light"] .ytlf-opt.active { background: rgba(0,0,0,0.08); }
 
+/* ── "Show videos without audio tag" toggle (bottom of the language panel) ── */
+/* sticky bottom so it stays visible while the language list scrolls; opaque themed
+   background so the scrolling options don't show through. Mirrors the country picker. */
+#ytlf-untagged {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 16px;
+  border-top: 1px solid;
+  font-size: 13px;
+  line-height: 1.35;
+  cursor: pointer;
+}
+.ytlf-untagged-text { flex: 1; }
+#ytlf[data-theme="dark"] #ytlf-untagged {
+  background: #1e1e1e; color: #f1f1f1; border-top-color: rgba(255,255,255,0.1);
+}
+#ytlf[data-theme="light"] #ytlf-untagged {
+  background: #ffffff; color: #0f0f0f; border-top-color: rgba(0,0,0,0.1);
+}
+
 /* ── Dark theme ────────────────────────────────────────── */
 #ytlf[data-theme="dark"] #ytlf-trigger {
   background: #272727; color: #f1f1f1; border-color: #3f3f3f;
